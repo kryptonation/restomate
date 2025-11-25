@@ -1,6 +1,6 @@
 # app/config.py
 
-from typing import Optional
+from typing import Optional, List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -44,6 +44,24 @@ class Settings(BaseSettings):
 
     allowed_hosts: str = "*"
 
+    s3_bucket_name: str
+    s3_endpoint_url: Optional[str] = None
+    s3_region: Optional[str] = None
+
+    s3_max_file_size_mb: int = 20
+    s3_allowed_extensions: str = "jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt,csv,zip"
+    s3_allowed_mime_types: str = "image/jpeg,image/png,image/gif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv,application/zip"
+
+    s3_use_uuid_prefix: bool = True
+    s3_preserve_filename: bool = True
+    s3_folder_structure: str = "{year}/{month}/{day}"
+
+    s3_presigned_url_expiry: int = 3600
+    s3_download_url_expiry: int = 300
+
+    s3_enable_virus_scan: bool = False
+    s3_encrypt_at_rest: bool = True
+
     @property
     def db_url(self) -> str:
         """Construct the database URL from individual components."""
@@ -78,6 +96,26 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         """Parse the allowed hosts into a list for CORS configuration."""
         return [origin.strip() for origin in self.allowed_hosts.split(",")]
+    
+    @property
+    def s3_max_file_size_bytes(self) -> int:
+        """Convert max file size to bytes."""
+        return self.s3_max_file_size_mb * 1024 * 1024
+    
+    @property
+    def s3_allowed_extensions_list(self) -> List[str]:
+        """Parse allowed extensions into list."""
+        return [ext.strip().lower() for ext in self.s3_allowed_extensions.split(",")]
+    
+    @property
+    def s3_allowed_mime_types_list(self) -> List[str]:
+        """Parse allowed MIME types into list."""
+        return [mime.strip().lower() for mime in self.s3_allowed_mime_types.split(",")]
+    
+    @property
+    def s3_effective_region(self) -> str:
+        """Get effective S3 region (fallback to aws_region)."""
+        return self.s3_region or self.aws_region
     
 
 settings = Settings()

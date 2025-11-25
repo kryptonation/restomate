@@ -14,6 +14,7 @@ from app.core.exceptions import BaseAppException
 from app.core.middleware import LoggingMiddleware, RequestIDMiddleware
 from app.modules.users.router import router as users_router, auth_router
 from app.modules.roles.router import router as roles_router
+from app.modules.files.router import router as files_router
 from app.database import engine
 
 logger = get_logger(__name__)
@@ -151,5 +152,6 @@ async def health_check():
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(users_router, prefix=settings.api_v1_prefix)
 app.include_router(roles_router, prefix=settings.api_v1_prefix)
+app.include_router(files_router, prefix=settings.api_v1_prefix)
 
 
