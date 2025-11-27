@@ -6,6 +6,8 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import settings
@@ -15,6 +17,7 @@ from app.core.middleware import LoggingMiddleware, RequestIDMiddleware
 from app.modules.users.router import router as users_router, auth_router
 from app.modules.roles.router import router as roles_router
 from app.modules.files.router import router as files_router
+from app.modules.seeder.router import router as seeder_router
 from app.database import engine
 
 logger = get_logger(__name__)
@@ -43,6 +46,8 @@ app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     debug=settings.debug,
+    docs_url=None,  # Disable default docs
+    redoc_url=None,  # Disable default redoc
     lifespan=lifespan
 )
 
@@ -58,6 +63,44 @@ app.add_middleware(
 # Add custom middleware
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(LoggingMiddleware)
+
+# ========== Custom OpenAPI Schema ==========
+
+def custom_openapi():
+    """Custom OpenAPI schema with security definitions."""
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title=settings.app_name,
+        version=settings.app_version,
+        description="Food Fleet API - Multi-tenant restaurant management platform",
+        routes=app.routes,
+    )
+    
+    # Add security scheme
+    openapi_schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "Enter your JWT token"
+        }
+    }
+    
+    # Add security to all endpoints (except public ones)
+    for path in openapi_schema["paths"]:
+        for method in openapi_schema["paths"][path]:
+            if method in ["get", "post", "put", "delete", "patch"]:
+                # Skip auth endpoints
+                if "/auth/" not in path or path.endswith("/login") or path.endswith("/register") or path.endswith("/refresh"):
+                    if "security" not in openapi_schema["paths"][path][method]:
+                        openapi_schema["paths"][path][method]["security"] = [{"BearerAuth": []}]
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 
 # ========== Exception Handlers ==========
 
@@ -130,6 +173,39 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 # ========== Routes ==========
 
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    """Custom Swagger UI with CDN assets."""
+    return get_swagger_ui_html(
+        openapi_url="/openapi.json",
+        title=f"{settings.app_name} - Swagger UI",
+        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
+        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
+        swagger_favicon_url="https://fastapi.tiangolo.com/img/favicon.png",
+        init_oauth={
+            "usePkceWithAuthorizationCodeGrant": True,
+            "clientId": "swagger-ui",
+            "appName": settings.app_name,
+        },
+        swagger_ui_parameters={
+            "persistAuthorization": True,
+            "displayRequestDuration": True,
+            "filter": True,
+            "tryItOutEnabled": True,
+            "syntaxHighlight.theme": "monokai",
+        }
+    )
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc_html():
+    """ReDoc documentation."""
+    from fastapi.openapi.docs import get_redoc_html
+    return get_redoc_html(
+        openapi_url="/openapi.json",
+        title=f"{settings.app_name} - ReDoc",
+        redoc_js_url="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js",
+    )
+
 @app.get("/")
 async def root():
     """Root endpoint."""
@@ -153,5 +229,5 @@ app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(users_router, prefix=settings.api_v1_prefix)
 app.include_router(roles_router, prefix=settings.api_v1_prefix)
 app.include_router(files_router, prefix=settings.api_v1_prefix)
-
+app.include_router(seeder_router, prefix=settings.api_v1_prefix)
 

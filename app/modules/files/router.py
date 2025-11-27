@@ -9,7 +9,7 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 
 from app.database import get_db
-from app.dependencies import ActiveUser
+from app.dependencies import ActiveUser, require_permission
 from app.modules.files.services import FileService
 from app.modules.files.schemas import (
     FileUploadResponse, PresignedUrlResponse, FileMetadataResponse,
@@ -26,12 +26,13 @@ def get_file_service(db=Depends(get_db), user=Depends(ActiveUser)):
 
 @router.post("/upload", response_model=FileUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_file(
+    current_user: ActiveUser,
+    service: FileService = Depends(get_file_service),
     file: UploadFile = File(...),
     folder: Optional[str] = None,
     description: Optional[str] = None,
     is_public: bool = False,
-    current_user: ActiveUser = Depends(),
-    service: FileService = Depends(get_file_service)
+    _: None = Depends(require_permission("files", "create"))
 ):
     """
     Upload a file to S3
@@ -59,11 +60,12 @@ async def upload_file(
 
 @router.get("/", response_model=FileListResponse)
 async def list_files(
+    current_user: ActiveUser,
+    service: FileService = Depends(get_file_service),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     content_type: Optional[str] = None,
-    current_user: ActiveUser = Depends(),
-    service: FileService = Depends(get_file_service)
+    _: None = Depends(require_permission("files", "read"))
 ):
     """
     List uploaded files with pagination.
@@ -90,8 +92,9 @@ async def list_files(
 @router.get("/{file_id}", response_model=FileUploadResponse)
 async def get_file(
     file_id: int,
-    current_user: ActiveUser = Depends(),
-    service: FileService = Depends(get_file_service)
+    current_user: ActiveUser,
+    service: FileService = Depends(get_file_service),
+    _: None = Depends(require_permission("files", "read"))
 ):
     """
     Get file details by ID.
@@ -103,10 +106,11 @@ async def get_file(
 @router.get("/{file_id}/presigned-url", response_model=PresignedUrlResponse)
 async def get_presigned_url(
     file_id: int,
+    current_user: ActiveUser,
+    service: FileService = Depends(get_file_service),
     expiry: Optional[int] = Query(None, description="URL expiry in seconds"),
     force_download: bool = Query(False, description="Force file download"),
-    current_user: ActiveUser = Depends(),
-    service: FileService = Depends(get_file_service)
+    _: None = Depends(require_permission("files", "read"))
 ):
     """
     Generate presigned URL for file access.
@@ -136,8 +140,9 @@ async def get_presigned_url(
 @router.get("/{file_id}/metadata", response_model=FileMetadataResponse)
 async def get_file_metadata(
     file_id: int,
-    current_user: ActiveUser = Depends(),
-    service: FileService = Depends(get_file_service)
+    current_user: ActiveUser,
+    service: FileService = Depends(get_file_service),
+    _: None = Depends(require_permission("files", "read"))
 ):
     """
     Get detailed file metadata from S3.
@@ -159,9 +164,10 @@ async def get_file_metadata(
 @router.get("/{file_id}/download")
 async def download_file(
     file_id: int,
+    current_user: ActiveUser,
+    service: FileService = Depends(get_file_service),
     as_attachment: bool = Query(True, description="Download as attachment"),
-    current_user: ActiveUser = Depends(),
-    service: FileService = Depends(get_file_service)
+    _: None = Depends(require_permission("files", "read"))
 ):
     """
     Download file as bytes.
@@ -188,8 +194,9 @@ async def download_file(
 @router.get("/{file_id}/download-bytes")
 async def download_file_bytes(
     file_id: int,
-    current_user: ActiveUser = Depends(),
-    service: FileService = Depends(get_file_service)
+    current_user: ActiveUser,
+    service: FileService = Depends(get_file_service),
+    _: None = Depends(require_permission("files", "read"))
 ):
     """
     Download file as raw bytes.
@@ -209,9 +216,10 @@ async def download_file_bytes(
 @router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_file(
     file_id: int,
+    current_user: ActiveUser,
+    service: FileService = Depends(get_file_service),
     hard_delete: bool = Query(False, description="Permanently delete from S3"),
-    current_user: ActiveUser = Depends(),
-    service: FileService = Depends(get_file_service)
+    _: None = Depends(require_permission("files", "delete"))
 ):
     """
     Delete file.
@@ -226,9 +234,10 @@ async def delete_file(
 async def upload_file_metadata(
     file_id: int,
     metadata: dict,
+    current_user: ActiveUser,
+    service: FileService = Depends(get_file_service),
     description: Optional[str] = None,
-    current_user: ActiveUser = Depends(),
-    service: FileService = Depends(get_file_service)
+    _: None = Depends(require_permission("files", "update"))
 ):
     """
     Update file metadata.
@@ -249,10 +258,11 @@ async def upload_file_metadata(
 @router.post("/{file_id}/copy", response_model=FileUploadResponse, status_code=status.HTTP_201_CREATED)
 async def copy_file(
     file_id: int,
+    current_user: ActiveUser,
+    service: FileService = Depends(get_file_service),
     new_folder: Optional[str] = None,
     new_metadata: Optional[dict] = None,
-    current_user: ActiveUser = Depends(),
-    service: FileService = Depends(get_file_service)
+    _: None = Depends(require_permission("files", "create"))
 ):
     """
     Copy file to new location.

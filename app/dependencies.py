@@ -54,41 +54,65 @@ async def get_current_active_user(
     return current_user
 
 
-async def require_permission(
-    resource: str,
-    action: str,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Require specific permission."""
-    from app.modules.roles.services import RoleService
+def require_permission(resource: str, action: str):
+    """
+    Dependency factory to require specific permission.
+    
+    Usage:
+        @router.get("/endpoint")
+        async def endpoint(
+            current_user: ActiveUser,
+            _: None = Depends(require_permission("resource", "action"))
+        ):
+            ...
+    """
+    async def permission_checker(
+        current_user: User = Depends(get_current_active_user),
+        db: AsyncSession = Depends(get_db)
+    ) -> User:
+        """Check if user has required permission."""
+        from app.modules.roles.services import RoleService
 
-    if current_user.is_superuser:
+        # Superusers bypass all permission checks
+        if current_user.is_superuser:
+            return current_user
+        
+        # Check if user has a role
+        if not current_user.role_id:
+            logger.warning(
+                "permission_denied_no_role",
+                user_id=current_user.id,
+                resource=resource,
+                action=action
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No role assigned"
+            )
+        
+        # Check permission
+        role_service = RoleService(db)
+        has_permission = await role_service.check_permissions(
+            current_user.role_id,
+            resource,
+            action
+        )
+
+        if not has_permission:
+            logger.warning(
+                "permission_denied",
+                user_id=current_user.id,
+                resource=resource,
+                action=action
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Insufficient permissions to {action} {resource}"
+            )
+        
         return current_user
     
-    if not current_user.role_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No role assigned"
-        )
-    
-    role_service = RoleService(db)
-    has_permission = await role_service.check_permissions(
-        current_user.role_id,
-        resource,
-        action
-    )
-
-    if not has_permission:
-        logger.warning(
-            "permission_denied", user_id=current_user.id, resource=resource, action=action
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Insufficient permissions to {action} {resource}"
-        )
-    
-    return current_user
+    return permission_checker
 
 
 # Type aliases for common dependencies

@@ -12,6 +12,8 @@ from app.config import settings
 from app.database import Base
 from app.modules.roles.models import *
 from app.modules.users.models import *
+from app.modules.files.models import *
+from app.modules.seeder.models import *
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

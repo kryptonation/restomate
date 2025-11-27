@@ -11,6 +11,7 @@ from app.modules.users.services import UserService
 from app.modules.users.schemas import *
 from app.core.security import decode_token
 from app.modules.users.exceptions import UnauthorizedException
+from app.dependencies import ActiveUser, require_permission
 
 router = APIRouter(prefix="/users", tags=["users"])
 auth_router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -225,11 +226,12 @@ async def update_current_user_profile(
 
 @router.get("/", response_model=List[UserResponse])
 async def list_users(
+    current_user: ActiveUser,
+    service: UserService = Depends(get_user_service),
     skip: int = 0,
     limit: int = 100,
     is_active: Optional[bool] = None,
-    current_user = Depends(get_current_user),
-    service: UserService = Depends(get_user_service)
+    _: None = Depends(require_permission("users", "read"))
 ):
     """List all users (admin only)."""
     # TODO: add permission check for admin
@@ -238,8 +240,9 @@ async def list_users(
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: int,
-    current_user = Depends(get_current_user),
-    service: UserService = Depends(get_user_service)
+    current_user: ActiveUser,
+    service: UserService = Depends(get_user_service),
+    _: None = Depends(require_permission("users", "read"))
 ):
     """Get user by ID (admin only)."""
     # TODO: add permission check for admin
@@ -248,8 +251,9 @@ async def get_user(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: int,
-    current_user = Depends(get_current_user),
-    service: UserService = Depends(get_user_service)
+    current_user: ActiveUser,
+    service: UserService = Depends(get_user_service),
+    _: None = Depends(require_permission("users", "delete"))
 ):
     """Delete user (admin only)."""
     # TODO: add permission check for admin
