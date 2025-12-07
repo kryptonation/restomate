@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: restaurant_fleet_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: restaurant_fleet
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - restaurant_fleet_network
+
+  # Redis Cache & Session Store
+  redis:
+    image: redis:7-alpine
+    container_name: restaurant_fleet_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ""
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - restaurant_fleet_network
+
+  # FastAPI Application (Optional - for full Docker deployment)
+  # Uncomment to run the application in Docker
+  # app:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: restaurant_fleet_app
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - ENVIRONMENT=development
+  #     - POSTGRES_HOST=postgres
+  #     - POSTGRES_PORT=5432
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=postgres
+  #     - POSTGRES_DB=restaurant_fleet
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ./src:/app/src
+  #     - ./logs:/app/logs
+  #     - ./uploads:/app/uploads
+  #   networks:
+  #     - restaurant_fleet_network
+
+  # PgAdmin (Optional - for database management)
+  # Uncomment to use PgAdmin
+  # pgadmin:
+  #   image: dpage/pgadmin4:latest
+  #   container_name: restaurant_fleet_pgadmin
+  #   restart: unless-stopped
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@admin.com
+  #     PGADMIN_DEFAULT_PASSWORD: admin
+  #     PGADMIN_LISTEN_PORT: 80
+  #   ports:
+  #     - "5050:80"
+  #   volumes:
+  #     - pgadmin_data:/var/lib/pgadmin
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - restaurant_fleet_network
+
+  # Redis Commander (Optional - for Redis management)
+  # Uncomment to use Redis Commander
+  # redis-commander:
+  #   image: rediscommander/redis-commander:latest
+  #   container_name: restaurant_fleet_redis_commander
+  #   restart: unless-stopped
+  #   environment:
+  #     - REDIS_HOSTS=local:redis:6379
+  #   ports:
+  #     - "8081:8081"
+  #   depends_on:
+  #     - redis
+  #   networks:
+  #     - restaurant_fleet_network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  # pgadmin_data:
+  #   driver: local
+
+networks:
+  restaurant_fleet_network:
+    driver: bridge
